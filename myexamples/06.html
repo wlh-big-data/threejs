@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - animation - skinning</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="../examples/main.css">
+		<style>
+			a {
+				color: #f00;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="container"></div>
+		<div id="info">
+      <button id="btn">播放动画1</button>
+      <button id="btn2">播放动画2</button>
+			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> - Skeletal Animation Blending
+			(model from <a href="https://www.mixamo.com/" target="_blank" rel="noopener">mixamo.com</a>)<br/>
+			Note: crossfades are possible with blend weights being set to (1,0,0), (0,1,0) or (0,0,1)
+		</div>
+
+		<!-- Import maps polyfill -->
+		<!-- Remove this when import maps will be widely supported -->
+		<script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "../build/three.module.js",
+					"three/addons/": "../examples/jsm/"
+				}
+			}
+		</script>
+
+		<script type="module">
+
+			import * as THREE from 'three';
+
+			import Stats from 'three/addons/libs/stats.module.js';
+			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+
+			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+			let scene, renderer, camera, stats;
+			let model, skeleton, mixer, clock;
+			const crossFadeControls = [];
+      let duration = 0;
+
+			let idleAction, walkAction, runAction;
+			let idleWeight, walkWeight, runWeight;
+			let actions, settings;
+
+			let singleStepMode = false;
+			let sizeOfNextStep = 0;
+
+			init();
+
+			function init() {
+
+				const container = document.getElementById( 'container' );
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 100 );
+				camera.position.set( 1, 2, - 3 );
+				camera.lookAt( 0, 1, 0 );
+
+				clock = new THREE.Clock();
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0xa0a0a0 );
+				scene.fog = new THREE.Fog( 0xa0a0a0, 10, 50 );
+
+				const hemiLight = new THREE.HemisphereLight( 0xffffff, 0x8d8d8d, 3 );
+				hemiLight.position.set( 0, 20, 0 );
+				scene.add( hemiLight );
+
+				const dirLight = new THREE.DirectionalLight( 0xffffff, 3 );
+				dirLight.position.set( - 3, 10, - 10 );
+				dirLight.castShadow = true;
+				dirLight.shadow.camera.top = 2;
+				dirLight.shadow.camera.bottom = - 2;
+				dirLight.shadow.camera.left = - 2;
+				dirLight.shadow.camera.right = 2;
+				dirLight.shadow.camera.near = 0.1;
+				dirLight.shadow.camera.far = 40;
+				scene.add( dirLight );
+
+				// scene.add( new THREE.CameraHelper( dirLight.shadow.camera ) );
+
+				// ground
+
+				const mesh = new THREE.Mesh( new THREE.PlaneGeometry( 100, 100 ), new THREE.MeshPhongMaterial( { color: 0xcbcbcb, depthWrite: false } ) );
+				mesh.rotation.x = - Math.PI / 2;
+				mesh.receiveShadow = true;
+				scene.add( mesh );
+
+				const loader = new GLTFLoader();
+				loader.load( '../examples/models/gltf/Soldier.glb', function ( gltf ) {
+
+
+					model = gltf.scene;
+					scene.add( model );
+
+					model.traverse( function ( object ) {
+
+						if ( object.isMesh ) object.castShadow = true;
+
+					} );
+
+					//
+
+					skeleton = new THREE.SkeletonHelper( model );
+					skeleton.visible = false;
+					scene.add( skeleton );
+
+					//
+
+					// createPanel();
+
+
+					//
+
+					const animations = gltf.animations;
+
+					mixer = new THREE.AnimationMixer( model );
+
+					idleAction = mixer.clipAction( animations[ 0 ] );
+					walkAction = mixer.clipAction( animations[ 3 ] );
+					runAction = mixer.clipAction( animations[ 1 ] );
+					idleAction.loop = THREE.LoopOnce; 
+					walkAction.loop = THREE.LoopOnce;
+					runAction.loop = THREE.LoopOnce;
+
+          // idleAction.clampWhenFinished = true;
+          // walkAction.clampWhenFinished = true;
+          // runAction.clampWhenFinished = true;
+          // duration += idleAction.getClip().duration;
+          // duration += walkAction.getClip().duration;
+          // duration += runAction.getClip().duration;
+
+					actions = [ idleAction, walkAction, runAction ];
+
+					animate();
+
+          mixer.addEventListener( 'loop', function( e ) {
+            console.log('loop')
+          } ); // properties of e: type, 
+          // mixer.addEventListener( 'finished', function( e ) {
+          //   console.log('finished');
+          // } ); // properties of e: type, action and direction
+
+				} );
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.shadowMap.enabled = true;
+				container.appendChild( renderer.domElement );
+
+				// stats = new Stats();
+				// container.appendChild( stats.dom );
+
+				window.addEventListener( 'resize', onWindowResize );
+
+			}
+
+			
+
+			function activateAllActions() {
+        console.log(actions);
+
+				actions.forEach( function ( action, index ) {
+
+					// index === 1 && action.play();
+          action.play();
+
+				} );
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+      document.getElementById('btn').addEventListener('click', () => {
+
+        
+        actions.forEach((item) => {
+          item.play();
+        })
+        activateAllActions();
+        // setTimeout(() => {
+        //   idleAction.stop();
+        //   walkAction.stop();
+        //   runAction.stop();
+        // }, 2000);
+
+      })
+
+      let currentIndex = 0;
+      setTimeout(() => {
+        mixer.addEventListener( 'finished', function( e ) {
+        console.log('loop')
+        actions[currentIndex].stop();
+            currentIndex++;
+            actions[currentIndex] && actions[currentIndex].play();
+      } ); // properties of e: type,
+      }, 2000);
+     
+
+      document.getElementById('btn2').addEventListener('click', () => {
+
+        currentIndex = 0;
+        actions[currentIndex].play();
+      })
+
+			function animate() {
+
+				// Render loop
+
+				requestAnimationFrame( animate );
+
+				// idleWeight = idleAction.getEffectiveWeight();
+				// walkWeight = walkAction.getEffectiveWeight();
+				// runWeight = runAction.getEffectiveWeight();
+
+				// Update the panel values if weights are modified from "outside" (by crossfadings)
+
+				// updateWeightSliders();
+
+				// Enable/disable crossfade controls according to current weight values
+
+				// updateCrossFadeControls();
+
+				// Get the time elapsed since the last frame, used for mixer update (if not in single step mode)
+
+				let mixerUpdateDelta = clock.getDelta();
+
+				// If in single step mode, make one step and then do nothing (until the user clicks again)
+
+				// if ( singleStepMode ) {
+
+				// 	mixerUpdateDelta = sizeOfNextStep;
+				// 	sizeOfNextStep = 0;
+
+				// }
+
+				// Update the animation mixer, the stats panel, and render this frame
+
+				mixer.update( mixerUpdateDelta );
+
+				// stats.update();
+
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+
+	</body>
+</html>
