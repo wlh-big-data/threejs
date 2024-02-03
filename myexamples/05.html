@@ -29,6 +29,7 @@
 			import * as THREE from 'three';
       import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
       import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+      import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 			const scene = new THREE.Scene();
       scene.background = new THREE.Color( 0xf0f0f0 );
@@ -45,8 +46,10 @@
       controls.enableDamping = true;
       controls.rotateSpeed = - 0.25;
 
+      
+
       const geo1 = new THREE.PlaneGeometry( 3, 3 );
-      const texture = new THREE.TextureLoader().load( './lensflare0_alpha.png' );
+      const texture = new THREE.TextureLoader().load( 'http://localhost:8081/myexamples/lensflare0_alpha.png' );
 			texture.colorSpace = THREE.SRGBColorSpace;
       console.log(texture);
       const material = new THREE.MeshBasicMaterial( { map: texture, transparent: true } );
@@ -54,6 +57,18 @@
       mesh.position.set( 0,0,0);
       mesh.updateMatrix();
       scene.add( mesh );
+
+      const transformControls = new TransformControls( camera, renderer.domElement );
+			transformControls.size = 0.75;
+			// transformControls.showX = false;
+			transformControls.space = 'world';
+			transformControls.attach( mesh );
+			scene.add( transformControls );
+
+
+			// disable orbitControls while using transformControls
+			transformControls.addEventListener( 'mouseDown', () => controls.enabled = false );
+			transformControls.addEventListener( 'mouseUp', () => controls.enabled = true );
 
 			camera.position.z = 5;
 

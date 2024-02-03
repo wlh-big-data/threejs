@@ -125,6 +125,7 @@
 						if ( baseActions[ name ] ) {
 
 							const action = mixer.clipAction( clip );
+							action.loop = THREE.LoopOnce; 
 							activateAction( action );
 							baseActions[ name ].action = action;
 							allActions.push( action );
